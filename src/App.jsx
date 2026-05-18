@@ -301,7 +301,10 @@ export default function App() {
       {/* Header */}
       <div style={S.header}>
         <div>
-          <div style={S.logo}>🧠 POT Quiz</div>
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
+            <img src="/logo.png" alt="Portaldot" style={{width:36,height:36,borderRadius:'50%'}}/>
+            <div style={S.logo}>Portaldot Trivia Quiz</div>
+          </div>
           <div style={S.sub}>Blockchain Trivia on Portaldot</div>
         </div>
         <div style={S.headerRight}>
@@ -326,8 +329,8 @@ export default function App() {
       {phase === 'home' && (
         <div style={S.center}>
           <div style={S.homeCard}>
-            <div style={S.homeEmoji}>🧠</div>
-            <div style={S.homeTitle}>Blockchain Trivia</div>
+            <img src="/logo.png" alt="Portaldot" style={{width:80,height:80,borderRadius:'50%',marginBottom:'0.75rem'}}/>
+            <div style={S.homeTitle}>Portaldot Trivia Quiz</div>
             <div style={S.homeDesc}>Test your blockchain knowledge. Score <strong style={{color:'#f0c040'}}>{minScore}/{questionsPerRound}+</strong> to win a <strong style={{color:'#f0c040'}}>{bonusPot} POT bonus</strong> sent to your wallet!</div>
             <div style={S.rulesGrid}>
               <div style={S.ruleBox}><div style={S.ruleVal}>{questionsPerRound}</div><div style={S.ruleLbl}>Questions</div></div>
@@ -669,66 +672,66 @@ export default function App() {
 }
 
 const S = {
-  page:{minHeight:'100vh',background:'#0d1117',color:'#e6edf3',fontFamily:'system-ui,sans-serif',paddingBottom:'4rem'},
-  header:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'1.25rem 2rem',borderBottom:'1px solid #21262d',background:'#161b22',flexWrap:'wrap',gap:'0.75rem'},
-  logo:{fontSize:'1.3rem',fontWeight:700,color:'#f0c040'},
-  sub:{fontSize:'0.75rem',color:'#8b949e',marginTop:2},
+  page:{minHeight:'100vh',background:'#0d0a14',color:'#e6edf3',fontFamily:'system-ui,sans-serif',paddingBottom:'4rem',width:'100%'},
+  header:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'1.25rem 2rem',borderBottom:'1px solid #2d1f4e',background:'#130d24',flexWrap:'wrap',gap:'0.75rem',width:'100%'},
+  logo:{fontSize:'1.3rem',fontWeight:700,color:'#c084fc'},
+  sub:{fontSize:'0.75rem',color:'#a78bfa',marginTop:2},
   headerRight:{display:'flex',alignItems:'center',gap:'0.75rem',flexWrap:'wrap'},
-  blockBadge:{background:'#1f2937',border:'1px solid #374151',borderRadius:20,padding:'4px 14px',fontSize:'0.8rem',color:'#34d399'},
-  navBtn:{background:'#21262d',color:'#e6edf3',border:'1px solid #30363d',borderRadius:8,padding:'6px 14px',cursor:'pointer',fontSize:'0.8rem',display:'inline-flex',alignItems:'center',gap:6},
-  badge:{background:'#f0c040',color:'#0d1117',borderRadius:99,padding:'1px 7px',fontSize:11,fontWeight:700},
-  connectBtn:{background:'#f0c040',color:'#0d1117',border:'none',borderRadius:8,padding:'8px 18px',fontWeight:700,cursor:'pointer',fontSize:'0.9rem'},
-  accountBadge:{background:'#1a2b1a',border:'1px solid #2ea043',borderRadius:10,padding:'6px 14px',fontSize:'0.8rem',color:'#3fb950',textAlign:'right'},
-  balSmall:{fontSize:'0.7rem',color:'#6e9e77',marginTop:1},
+  blockBadge:{background:'#1e1333',border:'1px solid #6d28d9',borderRadius:20,padding:'4px 14px',fontSize:'0.8rem',color:'#c084fc'},
+  navBtn:{background:'#1e1333',color:'#e6edf3',border:'1px solid #4c1d95',borderRadius:8,padding:'6px 14px',cursor:'pointer',fontSize:'0.8rem',display:'inline-flex',alignItems:'center',gap:6},
+  badge:{background:'#7c3aed',color:'#fff',borderRadius:99,padding:'1px 7px',fontSize:11,fontWeight:700},
+  connectBtn:{background:'linear-gradient(135deg,#7c3aed,#a855f7)',color:'#fff',border:'none',borderRadius:8,padding:'8px 18px',fontWeight:700,cursor:'pointer',fontSize:'0.9rem'},
+  accountBadge:{background:'#1e1333',border:'1px solid #6d28d9',borderRadius:10,padding:'6px 14px',fontSize:'0.8rem',color:'#c084fc',textAlign:'right'},
+  balSmall:{fontSize:'0.7rem',color:'#a78bfa',marginTop:1},
   errorBox:{margin:'1rem 2rem',padding:'0.75rem 1rem',background:'#2d1b1b',border:'1px solid #f85149',borderRadius:8,color:'#f85149',fontSize:'0.9rem'},
-  successBox:{padding:'0.75rem 1rem',background:'#1a2b1a',border:'1px solid #2ea043',borderRadius:8,color:'#3fb950',fontSize:'0.9rem'},
-  center:{display:'flex',justifyContent:'center',padding:'2rem 1rem'},
-  homeCard:{background:'#161b22',border:'1px solid #30363d',borderRadius:16,padding:'2rem',maxWidth:520,width:'100%',textAlign:'center'},
+  successBox:{padding:'0.75rem 1rem',background:'#1e1333',border:'1px solid #7c3aed',borderRadius:8,color:'#c084fc',fontSize:'0.9rem'},
+  center:{display:'flex',justifyContent:'center',padding:'2rem 1rem',width:'100%'},
+  homeCard:{background:'#130d24',border:'1px solid #4c1d95',borderRadius:16,padding:'2rem',maxWidth:560,width:'100%',textAlign:'center'},
   homeEmoji:{fontSize:52,marginBottom:'0.75rem'},
-  homeTitle:{fontSize:'1.4rem',fontWeight:700,marginBottom:'0.5rem'},
-  homeDesc:{fontSize:'0.9rem',color:'#8b949e',marginBottom:'1.5rem',lineHeight:1.6},
+  homeTitle:{fontSize:'1.4rem',fontWeight:700,marginBottom:'0.5rem',color:'#e9d5ff'},
+  homeDesc:{fontSize:'0.9rem',color:'#a78bfa',marginBottom:'1.5rem',lineHeight:1.6},
   rulesGrid:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:'1.25rem'},
-  ruleBox:{background:'#21262d',borderRadius:10,padding:'0.75rem'},
-  ruleVal:{fontSize:'1.1rem',fontWeight:700,color:'#f0c040'},
-  ruleLbl:{fontSize:'0.75rem',color:'#8b949e',marginTop:2},
-  bigBtn:{width:'100%',padding:'0.85rem',background:'#f0c040',color:'#0d1117',border:'none',borderRadius:10,fontWeight:700,fontSize:'1rem',cursor:'pointer'},
-  miniLb:{marginTop:'1.25rem',textAlign:'left',borderTop:'1px solid #21262d',paddingTop:'1rem'},
-  miniLbTitle:{fontWeight:600,marginBottom:'0.5rem',color:'#f0c040',fontSize:'0.9rem'},
-  miniLbRow:{display:'flex',alignItems:'center',gap:10,padding:'0.4rem 0',borderBottom:'1px solid #21262d'},
-  quizCard:{background:'#161b22',border:'1px solid #30363d',borderRadius:16,padding:'2rem',maxWidth:580,width:'100%'},
+  ruleBox:{background:'#1e1333',borderRadius:10,padding:'0.75rem',border:'1px solid #4c1d95'},
+  ruleVal:{fontSize:'1.1rem',fontWeight:700,color:'#c084fc'},
+  ruleLbl:{fontSize:'0.75rem',color:'#a78bfa',marginTop:2},
+  bigBtn:{width:'100%',padding:'0.85rem',background:'linear-gradient(135deg,#7c3aed,#a855f7)',color:'#fff',border:'none',borderRadius:10,fontWeight:700,fontSize:'1rem',cursor:'pointer'},
+  miniLb:{marginTop:'1.25rem',textAlign:'left',borderTop:'1px solid #4c1d95',paddingTop:'1rem'},
+  miniLbTitle:{fontWeight:600,marginBottom:'0.5rem',color:'#c084fc',fontSize:'0.9rem'},
+  miniLbRow:{display:'flex',alignItems:'center',gap:10,padding:'0.4rem 0',borderBottom:'1px solid #2d1f4e'},
+  quizCard:{background:'#130d24',border:'1px solid #4c1d95',borderRadius:16,padding:'2rem',maxWidth:600,width:'100%'},
   progressRow:{display:'flex',justifyContent:'space-between',marginBottom:'0.5rem'},
-  progressTrack:{height:4,background:'#21262d',borderRadius:4,marginBottom:'1rem'},
-  progressFill:{height:4,background:'#f0c040',borderRadius:4,transition:'width .3s'},
+  progressTrack:{height:4,background:'#2d1f4e',borderRadius:4,marginBottom:'1rem'},
+  progressFill:{height:4,background:'linear-gradient(90deg,#7c3aed,#a855f7)',borderRadius:4,transition:'width .3s'},
   timerRow:{display:'flex',alignItems:'center',gap:10,marginBottom:'1.25rem'},
-  timerTrack:{flex:1,height:6,background:'#21262d',borderRadius:4,overflow:'hidden'},
+  timerTrack:{flex:1,height:6,background:'#2d1f4e',borderRadius:4,overflow:'hidden'},
   timerFill:{height:6,borderRadius:4,transition:'width 1s linear, background .5s'},
-  questionText:{fontSize:'1.1rem',fontWeight:600,marginBottom:'1.5rem',lineHeight:1.5},
+  questionText:{fontSize:'1.1rem',fontWeight:600,marginBottom:'1.5rem',lineHeight:1.5,color:'#e9d5ff'},
   optionsGrid:{display:'flex',flexDirection:'column',gap:'0.6rem'},
-  optBtn:{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'0.75rem 1rem',background:'#21262d',border:'1px solid #30363d',borderRadius:10,color:'#e6edf3',cursor:'pointer',fontSize:'0.9rem',textAlign:'left'},
+  optBtn:{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'0.75rem 1rem',background:'#1e1333',border:'1px solid #4c1d95',borderRadius:10,color:'#e6edf3',cursor:'pointer',fontSize:'0.9rem',textAlign:'left'},
   optCorrect:{background:'#1a2b1a',border:'1px solid #22c55e',color:'#22c55e'},
   optWrong:{background:'#2d1b1b',border:'1px solid #ef4444',color:'#ef4444'},
-  optLetter:{width:24,height:24,borderRadius:6,background:'#30363d',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'0.75rem',fontWeight:700,flexShrink:0},
-  scoreDisplay:{fontSize:'3rem',fontWeight:700,color:'#f0c040',margin:'0.5rem 0'},
-  potEarned:{fontSize:'0.9rem',color:'#3fb950',marginBottom:'0.5rem'},
+  optLetter:{width:24,height:24,borderRadius:6,background:'#4c1d95',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'0.75rem',fontWeight:700,flexShrink:0,color:'#e9d5ff'},
+  scoreDisplay:{fontSize:'3rem',fontWeight:700,color:'#c084fc',margin:'0.5rem 0'},
+  potEarned:{fontSize:'0.9rem',color:'#a78bfa',marginBottom:'0.5rem'},
   bonusBanner:{background:'#1e1333',border:'1px solid #a78bfa',borderRadius:12,padding:'1rem',margin:'0.75rem 0',color:'#c4b5fd'},
-  missedBonus:{fontSize:'0.8rem',color:'#8b949e',margin:'0.5rem 0',padding:'0.5rem',background:'#21262d',borderRadius:8},
-  chainProof:{fontSize:'0.75rem',color:'#8b949e',background:'#21262d',borderRadius:8,padding:'6px 12px',display:'inline-block',marginTop:'0.5rem'},
+  missedBonus:{fontSize:'0.8rem',color:'#a78bfa',margin:'0.5rem 0',padding:'0.5rem',background:'#1e1333',borderRadius:8,border:'1px solid #4c1d95'},
+  chainProof:{fontSize:'0.75rem',color:'#a78bfa',background:'#1e1333',borderRadius:8,padding:'6px 12px',display:'inline-block',marginTop:'0.5rem',border:'1px solid #4c1d95'},
   reviewRow:{display:'flex',alignItems:'center',padding:'0.5rem 0.75rem',border:'1px solid',borderRadius:8,marginBottom:'0.4rem'},
   table:{width:'100%',borderCollapse:'collapse',fontSize:'0.85rem'},
-  th:{padding:'0.6rem 0.75rem',textAlign:'left',color:'#8b949e',borderBottom:'1px solid #21262d',fontWeight:500},
-  td:{padding:'0.65rem 0.75rem',borderBottom:'1px solid #21262d'},
+  th:{padding:'0.6rem 0.75rem',textAlign:'left',color:'#a78bfa',borderBottom:'1px solid #2d1f4e',fontWeight:500},
+  td:{padding:'0.65rem 0.75rem',borderBottom:'1px solid #2d1f4e'},
   tr:{background:'transparent'},
-  trGold:{background:'#2a2500'},
-  trSilver:{background:'#1e2028'},
-  trBronze:{background:'#1f1a14'},
-  sectionBox:{background:'#0d1117',border:'1px solid #21262d',borderRadius:12,padding:'1.25rem',marginBottom:'1rem'},
-  sectionTitle:{fontWeight:600,color:'#e6edf3',marginBottom:'0.75rem',display:'flex',alignItems:'center',gap:8},
-  formLabel:{fontSize:'0.8rem',color:'#8b949e',marginBottom:'0.4rem',fontWeight:500},
-  input:{width:'100%',background:'#21262d',border:'1px solid #30363d',borderRadius:8,padding:'0.6rem 0.85rem',color:'#e6edf3',fontSize:'0.9rem',marginBottom:'0.5rem',boxSizing:'border-box'},
-  scorePickBtn:{padding:'6px 16px',background:'#21262d',border:'1px solid #30363d',borderRadius:8,color:'#e6edf3',cursor:'pointer',fontSize:'0.9rem'},
-  scorePickActive:{background:'#f0c040',color:'#0d1117',border:'1px solid #f0c040',fontWeight:700},
-  claimRow:{display:'flex',alignItems:'center',gap:10,padding:'0.75rem',background:'#161b22',borderRadius:10,marginBottom:'0.5rem',border:'1px solid #30363d'},
-  sendBtn:{background:'#a78bfa',color:'#0d1117',border:'none',borderRadius:8,padding:'6px 14px',fontWeight:700,cursor:'pointer',fontSize:'0.85rem'},
-  qRow:{display:'flex',alignItems:'center',gap:10,padding:'0.6rem 0.75rem',background:'#21262d',borderRadius:8,marginBottom:'0.5rem'},
+  trGold:{background:'#2a1f3d'},
+  trSilver:{background:'#1e1333'},
+  trBronze:{background:'#170f2e'},
+  sectionBox:{background:'#0d0a14',border:'1px solid #2d1f4e',borderRadius:12,padding:'1.25rem',marginBottom:'1rem'},
+  sectionTitle:{fontWeight:600,color:'#e9d5ff',marginBottom:'0.75rem',display:'flex',alignItems:'center',gap:8},
+  formLabel:{fontSize:'0.8rem',color:'#a78bfa',marginBottom:'0.4rem',fontWeight:500},
+  input:{width:'100%',background:'#1e1333',border:'1px solid #4c1d95',borderRadius:8,padding:'0.6rem 0.85rem',color:'#e6edf3',fontSize:'0.9rem',marginBottom:'0.5rem',boxSizing:'border-box'},
+  scorePickBtn:{padding:'6px 16px',background:'#1e1333',border:'1px solid #4c1d95',borderRadius:8,color:'#e6edf3',cursor:'pointer',fontSize:'0.9rem'},
+  scorePickActive:{background:'linear-gradient(135deg,#7c3aed,#a855f7)',color:'#fff',border:'1px solid #7c3aed',fontWeight:700},
+  claimRow:{display:'flex',alignItems:'center',gap:10,padding:'0.75rem',background:'#1e1333',borderRadius:10,marginBottom:'0.5rem',border:'1px solid #4c1d95'},
+  sendBtn:{background:'linear-gradient(135deg,#7c3aed,#a855f7)',color:'#fff',border:'none',borderRadius:8,padding:'6px 14px',fontWeight:700,cursor:'pointer',fontSize:'0.85rem'},
+  qRow:{display:'flex',alignItems:'center',gap:10,padding:'0.6rem 0.75rem',background:'#1e1333',borderRadius:8,marginBottom:'0.5rem',border:'1px solid #2d1f4e'},
   deleteBtn:{background:'#2d1b1b',border:'1px solid #f8514933',color:'#f85149',borderRadius:6,padding:'4px 8px',cursor:'pointer',fontSize:12},
 }
