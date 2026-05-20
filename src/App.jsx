@@ -299,19 +299,20 @@ export default function App() {
     setSendingClaim(claim.firebaseId)
     setClaimMsg('')
     try {
-      if (claim.address !== account.address) {
-        const injector = await web3FromAddress(account.address)
-        const amount = BigInt(claim.bonus) * POT_DECIMALS
-        await new Promise((resolve, reject) => {
-          api.tx.balances.transferKeepAlive(claim.address, amount)
-            .signAndSend(account.address, { signer: injector.signer }, ({ status }) => {
-              if (status.isInBlock) resolve()
-              if (status.isDropped || status.isInvalid) reject(new Error('Failed'))
-            })
-        })
-      } else {
-        await new Promise(r => setTimeout(r, 1500))
-      }
+      const injector = await web3FromAddress(account.address)
+      const amount = BigInt(claim.bonus) * POT_DECIMALS
+      await new Promise((resolve, reject) => {
+        api.tx.balances.transferKeepAlive(claim.address, amount)
+          .signAndSend(account.address, { signer: injector.signer }, ({ status, dispatchError }) => {
+            if (dispatchError) {
+              reject(new Error(dispatchError.toString()))
+            } else if (status.isInBlock) {
+              resolve()
+            } else if (status.isDropped || status.isInvalid || status.isUsurped) {
+              reject(new Error('Transaction failed: ' + status.type))
+            }
+          })
+      })
       await set(ref(db, `claims/${claim.firebaseId}/status`), 'paid')
       setClaimMsg(`✅ Sent ${claim.bonus} POT to ${claim.short}!`)
     } catch (e) { setClaimMsg('❌ Transfer failed: ' + e.message) }
