@@ -1,6 +1,21 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { ApiPromise, WsProvider } from '@polkadot/api'
 import { web3Accounts, web3Enable, web3FromAddress } from '@polkadot/extension-dapp'
+import { initializeApp } from 'firebase/app'
+import { getDatabase, ref, set, onValue, push } from 'firebase/database'
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAFaOqygoe6iVHWqgdfwk27BKRZ6YhSqKU",
+  authDomain: "portaldotquiz.firebaseapp.com",
+  databaseURL: "https://portaldotquiz-default-rtdb.firebaseio.com",
+  projectId: "portaldotquiz",
+  storageBucket: "portaldotquiz.firebasestorage.app",
+  messagingSenderId: "530468848067",
+  appId: "1:530468848067:web:c1e8a3e6f71c36099c7d76",
+  measurementId: "G-SQ9KG9G140"
+}
+const firebaseApp = initializeApp(firebaseConfig)
+const db = getDatabase(firebaseApp)
 
 const DEFAULT_QUESTIONS = [
   { q: 'What is the native token of Portaldot?', options: ['DOT', 'ETH', 'POT', 'BNB'], answer: 2 },
@@ -73,20 +88,18 @@ export default function App() {
   const [adminPassword] = useState('portaldot2026')
   const [enteredPassword, setEnteredPassword] = useState('')
   const [adminUnlocked, setAdminUnlocked] = useState(false)
-  // Quiz schedule
   const [quizOpen, setQuizOpen] = useState(true)
-  const [scheduleMode, setScheduleMode] = useState('manual') // manual | datetime | countdown
+  const [scheduleMode, setScheduleMode] = useState('manual')
   const [scheduledTime, setScheduledTime] = useState('')
   const [countdownInput, setCountdownInput] = useState('1h')
   const [quizStartsAt, setQuizStartsAt] = useState(null)
   const [timeLeft, setTimeLeft] = useState(0)
-  const [quizSessionId, setQuizSessionId] = useState(() => localStorage.getItem('pot_session') || Date.now().toString())
-  const quizSessionRef = useRef(quizSessionId)
 
   useEffect(() => {
     async function connect() {
       try {
-        const provider = new WsProvider('ws://127.0.0.1:9944')
+        const wsEndpoint = import.meta.env.VITE_WS_ENDPOINT || 'ws://127.0.0.1:9944'
+        const provider = new WsProvider(wsEndpoint)
         const _api = await ApiPromise.create({ provider })
         setApi(_api)
         _api.rpc.chain.subscribeNewHeads(h => setBlock(h.number.toNumber()))
@@ -95,41 +108,58 @@ export default function App() {
       }
     }
     connect()
-    const saved = localStorage.getItem('pot_questions')
-    if (saved) setQuestions(JSON.parse(saved))
-    const lb = localStorage.getItem('pot_leaderboard')
-    if (lb) setLeaderboard(JSON.parse(lb))
-    const cl = localStorage.getItem('pot_claims')
-    if (cl) setClaims(JSON.parse(cl))
-    const settings = localStorage.getItem('pot_settings')
-    if (settings) {
-      const s = JSON.parse(settings)
+  }, [])
+
+  useEffect(() => {
+    const settingsRef = ref(db, 'settings')
+    const unsubSettings = onValue(settingsRef, (snap) => {
+      const s = snap.val()
+      if (!s) return
+      setQuizOpen(s.quizOpen ?? true)
       setMinScore(s.minScore ?? 4)
       setBonusPot(s.bonusPot ?? 2)
       setQuestionsPerRound(s.questionsPerRound ?? 5)
       setTimePerQuestion(s.timePerQuestion ?? 15)
-      setQuizOpen(s.quizOpen ?? true)
       setScheduleMode(s.scheduleMode ?? 'manual')
-    }
-    const session = localStorage.getItem('pot_session') || Date.now().toString()
-    setQuizSessionId(session)
-    quizSessionRef.current = session
-    localStorage.setItem('pot_session', session)
+      setQuizStartsAt(s.quizStartsAt || null)
+    })
+
+    const questionsRef = ref(db, 'questions')
+    const unsubQuestions = onValue(questionsRef, (snap) => {
+      const q = snap.val()
+      if (q) setQuestions(q)
+    })
+
+    const lbRef = ref(db, 'leaderboard')
+    const unsubLb = onValue(lbRef, (snap) => {
+      const data = snap.val()
+      if (!data) { setLeaderboard([]); return }
+      const arr = Object.values(data)
+        .sort((a, b) => b.score - a.score)
+        .map((e, i) => ({ ...e, rank: i + 1 }))
+      setLeaderboard(arr)
+    })
+
+    const claimsRef = ref(db, 'claims')
+    const unsubClaims = onValue(claimsRef, (snap) => {
+      const data = snap.val()
+      if (!data) { setClaims([]); return }
+      setClaims(Object.entries(data).map(([id, v]) => ({ ...v, firebaseId: id })))
+    })
+
+    return () => { unsubSettings(); unsubQuestions(); unsubLb(); unsubClaims() }
   }, [])
 
-  // Countdown timer
   useEffect(() => {
     if (!quizStartsAt) return
     const interval = setInterval(() => {
       const left = quizStartsAt - Date.now()
       if (left <= 0) {
         setTimeLeft(0)
-        setQuizOpen(true)
-        setQuizStartsAt(null)
         clearInterval(interval)
-        if (account && api) {
-          setPhase('welcome')
-        }
+        set(ref(db, 'settings/quizOpen'), true)
+        set(ref(db, 'settings/quizStartsAt'), null)
+        if (account && api) setPhase('welcome')
       } else {
         setTimeLeft(left)
       }
@@ -147,7 +177,6 @@ export default function App() {
     if (account) refreshBalance(account.address)
   }, [account, refreshBalance])
 
-  // Read on-chain leaderboard
   async function loadOnChainLeaderboard() {
     if (!api) return
     setLoadingLb(true)
@@ -166,10 +195,8 @@ export default function App() {
               const match = str.match(/POTQUIZ:([^:]+):(\d+)\/(\d+):BLOCK(\d+)/)
               if (match) {
                 scores.push({
-                  name: match[1],
-                  score: parseInt(match[2]),
-                  total: parseInt(match[3]),
-                  block: parseInt(match[4]),
+                  name: match[1], score: parseInt(match[2]),
+                  total: parseInt(match[3]), block: parseInt(match[4]),
                   pct: Math.round((parseInt(match[2]) / parseInt(match[3])) * 100)
                 })
               }
@@ -177,13 +204,8 @@ export default function App() {
           }
         } catch {}
       }
-      const sorted = scores
-        .sort((a, b) => b.score - a.score || b.block - a.block)
-        .map((e, i) => ({ ...e, rank: i + 1 }))
-      setOnChainScores(sorted)
-    } catch (e) {
-      console.error(e)
-    }
+      setOnChainScores(scores.sort((a, b) => b.score - a.score).map((e, i) => ({ ...e, rank: i + 1 })))
+    } catch (e) { console.error(e) }
     setLoadingLb(false)
   }
 
@@ -241,42 +263,26 @@ export default function App() {
           try {
             const injector = await web3FromAddress(account.address)
             const remark = `POTQUIZ:${nameInput.trim()}:${newScore}/${activeQuestions.length}:BLOCK${block}`
-            api.tx.system.remark(remark)
-              .signAndSend(account.address, { signer: injector.signer })
-              .catch(() => {})
+            api.tx.system.remark(remark).signAndSend(account.address, { signer: injector.signer }).catch(() => {})
           } catch {}
-        }
-        if (newScore >= minScore && account) {
-          const newClaim = {
-            id: Date.now(),
-            address: account.address,
-            short: nameInput.trim() || `${account.address.slice(0,6)}…${account.address.slice(-4)}`,
-            score: newScore,
-            total: activeQuestions.length,
-            bonus: bonusPot,
-            block: block || 0,
-            date: new Date().toLocaleDateString(),
-            status: 'pending'
-          }
-          const updatedClaims = [...claims, newClaim]
-          setClaims(updatedClaims)
-          localStorage.setItem('pot_claims', JSON.stringify(updatedClaims))
         }
         const entry = {
           address: account?.address || 'Unknown',
           short: nameInput.trim() || (account ? `${account.address.slice(0,6)}…${account.address.slice(-4)}` : 'Unknown'),
-          score: newScore,
-          total: activeQuestions.length,
+          score: newScore, total: activeQuestions.length,
           pot: (newScore * REWARD_PER_Q).toFixed(1),
           bonus: newScore >= minScore ? bonusPot : 0,
-          block: block || 0,
-          date: new Date().toLocaleDateString()
+          block: block || 0, date: new Date().toLocaleDateString(), timestamp: Date.now()
         }
-        const newLb = [...leaderboard, entry]
-          .sort((a, b) => b.score - a.score)
-          .map((e, i) => ({ ...e, rank: i + 1 }))
-        setLeaderboard(newLb)
-        localStorage.setItem('pot_leaderboard', JSON.stringify(newLb))
+        await push(ref(db, 'leaderboard'), entry)
+        if (newScore >= minScore && account) {
+          await push(ref(db, 'claims'), {
+            address: account.address,
+            short: nameInput.trim() || `${account.address.slice(0,6)}…${account.address.slice(-4)}`,
+            score: newScore, total: activeQuestions.length, bonus: bonusPot,
+            block: block || 0, date: new Date().toLocaleDateString(), status: 'pending', timestamp: Date.now()
+          })
+        }
         await refreshBalance(account?.address)
         setPhase('result')
       } else {
@@ -290,136 +296,93 @@ export default function App() {
 
   async function sendBonus(claim) {
     if (!account || !api) { setClaimMsg('Connect your wallet first.'); return }
-    setSendingClaim(claim.id)
+    setSendingClaim(claim.firebaseId)
     setClaimMsg('')
-    if (claim.address === account.address) {
-      await new Promise(r => setTimeout(r, 1500))
-      const updated = claims.map(c => c.id === claim.id ? { ...c, status: 'paid' } : c)
-      setClaims(updated)
-      localStorage.setItem('pot_claims', JSON.stringify(updated))
-      setClaimMsg(`✅ ${claim.bonus} POT bonus recorded for ${claim.short}!`)
-      setSendingClaim(null)
-      return
-    }
     try {
-      const injector = await web3FromAddress(account.address)
-      const amount = BigInt(claim.bonus) * POT_DECIMALS
-      await new Promise((resolve, reject) => {
-        api.tx.balances.transferKeepAlive(claim.address, amount)
-          .signAndSend(account.address, { signer: injector.signer }, ({ status }) => {
-            if (status.isInBlock) resolve()
-            if (status.isDropped || status.isInvalid) reject(new Error('Failed'))
-          })
-      })
-      const updated = claims.map(c => c.id === claim.id ? { ...c, status: 'paid' } : c)
-      setClaims(updated)
-      localStorage.setItem('pot_claims', JSON.stringify(updated))
+      if (claim.address !== account.address) {
+        const injector = await web3FromAddress(account.address)
+        const amount = BigInt(claim.bonus) * POT_DECIMALS
+        await new Promise((resolve, reject) => {
+          api.tx.balances.transferKeepAlive(claim.address, amount)
+            .signAndSend(account.address, { signer: injector.signer }, ({ status }) => {
+              if (status.isInBlock) resolve()
+              if (status.isDropped || status.isInvalid) reject(new Error('Failed'))
+            })
+        })
+      } else {
+        await new Promise(r => setTimeout(r, 1500))
+      }
+      await set(ref(db, `claims/${claim.firebaseId}/status`), 'paid')
       setClaimMsg(`✅ Sent ${claim.bonus} POT to ${claim.short}!`)
-    } catch (e) {
-      setClaimMsg('❌ Transfer failed: ' + e.message)
-    }
+    } catch (e) { setClaimMsg('❌ Transfer failed: ' + e.message) }
     setSendingClaim(null)
   }
 
   function shareScore() {
-    const text = `🧠 ${playerName} just scored ${score}/${activeQuestions.length} on the Portaldot Trivia Quiz!\n\n⛓ Score saved on Portaldot blockchain · Block #${block}\n💰 Earned ${(score * REWARD_PER_Q).toFixed(1)} POT${score >= minScore ? ` + ${bonusPot} POT bonus! 🎁` : ''}\n\nPlay at http://localhost:5174`
+    const text = `🧠 ${playerName} just scored ${score}/${activeQuestions.length} on the Portaldot Trivia Quiz!\n\n⛓ Score saved on Portaldot blockchain · Block #${block}\n💰 Earned ${(score * REWARD_PER_Q).toFixed(1)} POT${score >= minScore ? ` + ${bonusPot} POT bonus! 🎁` : ''}\n\nPlay at https://portaldotquiz.netlify.app`
     navigator.clipboard.writeText(text)
     setCopied(true)
     setTimeout(() => setCopied(false), 3000)
   }
 
-  function saveSettings() {
-    const settings = { minScore, bonusPot, questionsPerRound, timePerQuestion, quizOpen, scheduleMode }
-    localStorage.setItem('pot_settings', JSON.stringify(settings))
+  async function saveSettings() {
+    await set(ref(db, 'settings'), { quizOpen, minScore, bonusPot, questionsPerRound, timePerQuestion, scheduleMode, quizStartsAt: quizStartsAt || null })
     setAdminMsg(`✅ Saved! ${questionsPerRound} questions, ${timePerQuestion}s timer. Score ${minScore}+ earns ${bonusPot} bonus POT.`)
   }
 
-  function applySchedule() {
+  async function applySchedule() {
     if (scheduleMode === 'manual') {
-      setQuizOpen(true)
-      setQuizStartsAt(null)
+      await set(ref(db, 'settings'), { quizOpen: true, minScore, bonusPot, questionsPerRound, timePerQuestion, scheduleMode, quizStartsAt: null })
       setAdminMsg('✅ Quiz is now OPEN — players can join!')
     } else if (scheduleMode === 'datetime') {
       if (!scheduledTime) { setAdminMsg('❌ Pick a date and time first.'); return }
       const target = new Date(scheduledTime).getTime()
       if (target <= Date.now()) { setAdminMsg('❌ That time is in the past!'); return }
-      setQuizStartsAt(target)
-      setQuizOpen(false)
-      setTimeLeft(target - Date.now())
-      // New session
-      const newSession = Date.now().toString()
-      setQuizSessionId(newSession)
-      quizSessionRef.current = newSession
-      localStorage.setItem('pot_session', newSession)
-      setLeaderboard([])
-      localStorage.removeItem('pot_leaderboard')
+      await set(ref(db, 'settings'), { quizOpen: false, minScore, bonusPot, questionsPerRound, timePerQuestion, scheduleMode, quizStartsAt: target })
+      await set(ref(db, 'leaderboard'), null)
       setAdminMsg(`✅ Quiz scheduled for ${new Date(scheduledTime).toLocaleString()}`)
     } else if (scheduleMode === 'countdown') {
       const ms = parseCountdown(countdownInput)
       if (!ms) { setAdminMsg('❌ Invalid format. Use like: 1h, 30m, 90s'); return }
       const target = Date.now() + ms
-      setQuizStartsAt(target)
-      setQuizOpen(false)
-      setTimeLeft(ms)
-      const newSession = Date.now().toString()
-      setQuizSessionId(newSession)
-      quizSessionRef.current = newSession
-      localStorage.setItem('pot_session', newSession)
-      setLeaderboard([])
-      localStorage.removeItem('pot_leaderboard')
+      await set(ref(db, 'settings'), { quizOpen: false, minScore, bonusPot, questionsPerRound, timePerQuestion, scheduleMode, quizStartsAt: target })
+      await set(ref(db, 'leaderboard'), null)
       setAdminMsg(`✅ Quiz starts in ${countdownInput}!`)
     }
   }
 
-  function closeQuiz() {
-    setQuizOpen(false)
-    setQuizStartsAt(null)
+  async function closeQuiz() {
+    await set(ref(db, 'settings'), { quizOpen: false, minScore, bonusPot, questionsPerRound, timePerQuestion, scheduleMode, quizStartsAt: null })
     setAdminMsg('🔴 Quiz is now CLOSED.')
-    saveSettings()
   }
 
-  function addQuestion() {
+  async function addQuestion() {
     if (!adminQ.trim()) { setAdminMsg('Enter a question.'); return }
     if (adminOpts.some(o => !o.trim())) { setAdminMsg('Fill in all 4 options.'); return }
-    const newQ = { q: adminQ, options: adminOpts, answer: adminAnswer }
-    const updated = [...questions, newQ]
-    setQuestions(updated)
-    localStorage.setItem('pot_questions', JSON.stringify(updated))
-    setAdminQ('')
-    setAdminOpts(['', '', '', ''])
-    setAdminAnswer(0)
+    const updated = [...questions, { q: adminQ, options: adminOpts, answer: adminAnswer }]
+    await set(ref(db, 'questions'), updated)
+    setAdminQ(''); setAdminOpts(['', '', '', '']); setAdminAnswer(0)
     setAdminMsg(`✅ Question added! You now have ${updated.length} questions.`)
   }
 
-  function deleteQuestion(i) {
-    const updated = questions.filter((_, idx) => idx !== i)
-    setQuestions(updated)
-    localStorage.setItem('pot_questions', JSON.stringify(updated))
+  async function deleteQuestion(i) {
+    await set(ref(db, 'questions'), questions.filter((_, idx) => idx !== i))
   }
 
-  function resetQuestions() {
-    setQuestions(DEFAULT_QUESTIONS)
-    localStorage.setItem('pot_questions', JSON.stringify(DEFAULT_QUESTIONS))
+  async function resetQuestions() {
+    await set(ref(db, 'questions'), DEFAULT_QUESTIONS)
     setAdminMsg('✅ Reset to default questions.')
   }
 
-  function clearLeaderboard() {
-    setLeaderboard([])
+  async function clearLeaderboard() {
+    await set(ref(db, 'leaderboard'), null)
     setOnChainScores([])
-    localStorage.removeItem('pot_leaderboard')
   }
 
   function playAgain() {
-    setPhase('home')
-    setScore(0)
-    setResults([])
-    setSelected(null)
-    setAnswered(false)
-    setTimer(timePerQuestion)
-    setQIndex(0)
-    setNameInput('')
-    setError('')
-    setCopied(false)
+    setPhase('home'); setScore(0); setResults([]); setSelected(null)
+    setAnswered(false); setTimer(timePerQuestion); setQIndex(0)
+    setNameInput(''); setError(''); setCopied(false)
   }
 
   const timerPct = (timer / timePerQuestion) * 100
@@ -430,7 +393,6 @@ export default function App() {
 
   return (
     <div style={S.page}>
-      {/* Header */}
       <div style={S.header}>
         <div style={{display:'flex',alignItems:'center',gap:10}}>
           <img src="/logo.png" alt="Portaldot" style={{width:36,height:36,borderRadius:'50%'}}/>
@@ -442,9 +404,7 @@ export default function App() {
         <div style={S.headerRight}>
           {block && <div style={S.blockBadge}>⛓ Block #{block}</div>}
           {!quizOpen && quizStartsAt && (
-            <div style={{...S.blockBadge, color:'#f59e0b', borderColor:'#854d0e'}}>
-              ⏳ {formatCountdown(timeLeft)}
-            </div>
+            <div style={{...S.blockBadge, color:'#f59e0b', borderColor:'#854d0e'}}>⏳ {formatCountdown(timeLeft)}</div>
           )}
           <button style={S.navBtn} onClick={() => { setPhase('leaderboard'); loadOnChainLeaderboard() }}>🏆 Leaderboard</button>
           <button style={S.navBtn} onClick={() => setPhase('admin')}>
@@ -462,7 +422,6 @@ export default function App() {
 
       {error && <div style={S.errorBox}>⚠️ {error}</div>}
 
-      {/* HOME */}
       {phase === 'home' && (
         <div style={S.center}>
           <div style={S.homeCard}>
@@ -471,19 +430,14 @@ export default function App() {
             <div style={S.homeDesc}>
               Test your blockchain knowledge. Score <strong style={{color:'#c084fc'}}>{minScore}/{questionsPerRound}+</strong> to win a <strong style={{color:'#c084fc'}}>{bonusPot} POT bonus!</strong>
             </div>
-
-            {/* Countdown banner */}
             {!quizOpen && quizStartsAt && (
               <div style={S.countdownBanner}>
                 <div style={{fontSize:32,marginBottom:4}}>⏳</div>
                 <div style={{fontWeight:700,fontSize:'1.1rem',color:'#f59e0b'}}>Quiz starts in</div>
-                <div style={{fontSize:'2.5rem',fontWeight:700,color:'#f59e0b',fontVariantNumeric:'tabular-nums',letterSpacing:2}}>
-                  {formatCountdown(timeLeft)}
-                </div>
+                <div style={{fontSize:'2.5rem',fontWeight:700,color:'#f59e0b',fontVariantNumeric:'tabular-nums',letterSpacing:2}}>{formatCountdown(timeLeft)}</div>
                 <div style={{fontSize:12,color:'#8b949e',marginTop:4}}>Get ready — connect your wallet now!</div>
               </div>
             )}
-
             {!quizOpen && !quizStartsAt && (
               <div style={{...S.countdownBanner, borderColor:'#991b1b'}}>
                 <div style={{fontSize:24}}>🔴</div>
@@ -491,14 +445,12 @@ export default function App() {
                 <div style={{fontSize:12,color:'#8b949e',marginTop:4}}>Check back later or follow the admin for updates</div>
               </div>
             )}
-
             <div style={S.rulesGrid}>
               <div style={S.ruleBox}><div style={S.ruleVal}>{questionsPerRound}</div><div style={S.ruleLbl}>Questions</div></div>
               <div style={S.ruleBox}><div style={S.ruleVal}>{REWARD_PER_Q} POT</div><div style={S.ruleLbl}>Per correct</div></div>
               <div style={S.ruleBox}><div style={S.ruleVal}>{minScore}+</div><div style={S.ruleLbl}>Bonus threshold</div></div>
               <div style={S.ruleBox}><div style={S.ruleVal}>{bonusPot} POT</div><div style={S.ruleLbl}>Bonus prize</div></div>
             </div>
-
             {!account
               ? <button style={S.bigBtn} onClick={connectWallet}>Connect Wallet to Play</button>
               : quizOpen
@@ -507,7 +459,6 @@ export default function App() {
                     {quizStartsAt ? `Opens in ${formatCountdown(timeLeft)}` : 'Quiz Closed'}
                   </button>
             }
-
             {leaderboard.length > 0 && (
               <div style={S.miniLb}>
                 <div style={S.miniLbTitle}>🏆 Current Quiz — Top Players</div>
@@ -525,7 +476,6 @@ export default function App() {
         </div>
       )}
 
-      {/* WELCOME */}
       {phase === 'welcome' && (
         <div style={S.center}>
           <div style={S.homeCard}>
@@ -533,15 +483,10 @@ export default function App() {
             <div style={S.homeTitle}>What's your name?</div>
             <div style={S.homeDesc}>Your name will appear on the leaderboard for everyone to see.</div>
             {error && <div style={{...S.errorBox,margin:'0 0 1rem'}}>{error}</div>}
-            <input
-              style={{...S.input,fontSize:'1.1rem',textAlign:'center',marginBottom:'1rem'}}
-              placeholder="Enter your name..."
-              value={nameInput}
-              maxLength={20}
+            <input style={{...S.input,fontSize:'1.1rem',textAlign:'center',marginBottom:'1rem'}}
+              placeholder="Enter your name..." value={nameInput} maxLength={20}
               onChange={e => setNameInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && startGame()}
-              autoFocus
-            />
+              onKeyDown={e => e.key === 'Enter' && startGame()} autoFocus/>
             <div style={{fontSize:12,color:'#8b949e',marginBottom:'1rem'}}>
               Playing as: <strong style={{color:'#c084fc'}}>{account?.address.slice(0,6)}…{account?.address.slice(-4)}</strong>
             </div>
@@ -552,7 +497,6 @@ export default function App() {
         </div>
       )}
 
-      {/* QUIZ */}
       {phase === 'quiz' && activeQuestions.length > 0 && (
         <div style={S.center}>
           <div style={S.quizCard}>
@@ -563,13 +507,9 @@ export default function App() {
               </span>
               <span style={{fontSize:'0.8rem',color:'#c084fc',fontWeight:600}}>Score: {score}</span>
             </div>
-            <div style={S.progressTrack}>
-              <div style={{...S.progressFill,width:`${(qIndex/activeQuestions.length)*100}%`}}/>
-            </div>
+            <div style={S.progressTrack}><div style={{...S.progressFill,width:`${(qIndex/activeQuestions.length)*100}%`}}/></div>
             <div style={S.timerRow}>
-              <div style={S.timerTrack}>
-                <div style={{...S.timerFill,width:`${timerPct}%`,background:timerColor}}/>
-              </div>
+              <div style={S.timerTrack}><div style={{...S.timerFill,width:`${timerPct}%`,background:timerColor}}/></div>
               <span style={{fontSize:'0.85rem',fontWeight:700,color:timerColor,minWidth:28}}>{timer}s</span>
             </div>
             <div style={S.questionText}>{activeQuestions[qIndex].q}</div>
@@ -595,7 +535,6 @@ export default function App() {
         </div>
       )}
 
-      {/* RESULT */}
       {phase === 'result' && (
         <div style={S.center}>
           <div style={S.homeCard}>
@@ -614,18 +553,12 @@ export default function App() {
               <div style={S.bonusBanner}>
                 <div style={{fontSize:24,marginBottom:4}}>🎁</div>
                 <div style={{fontWeight:700,fontSize:'1.1rem',color:'#a78bfa'}}>Bonus Unlocked!</div>
-                <div style={{fontSize:'0.85rem',marginTop:4}}>
-                  You scored {score}/{activeQuestions.length} — you qualify for the <strong>{bonusPot} POT bonus!</strong>
-                </div>
-                <div style={{fontSize:'0.75rem',color:'#8b949e',marginTop:6}}>
-                  Your claim is recorded on-chain. The admin will send your bonus POT shortly.
-                </div>
+                <div style={{fontSize:'0.85rem',marginTop:4}}>You scored {score}/{activeQuestions.length} — you qualify for the <strong>{bonusPot} POT bonus!</strong></div>
+                <div style={{fontSize:'0.75rem',color:'#8b949e',marginTop:6}}>Your claim is recorded. The admin will send your bonus POT shortly.</div>
               </div>
             )}
             {score < minScore && (
-              <div style={S.missedBonus}>
-                Score {minScore}/{activeQuestions.length}+ to unlock the {bonusPot} POT bonus next time!
-              </div>
+              <div style={S.missedBonus}>Score {minScore}/{activeQuestions.length}+ to unlock the {bonusPot} POT bonus next time!</div>
             )}
             <div style={S.chainProof}>✅ Score saved on Portaldot blockchain · Block #{block}</div>
             <div style={{width:'100%',marginTop:'1.25rem'}}>
@@ -647,38 +580,22 @@ export default function App() {
         </div>
       )}
 
-      {/* LEADERBOARD */}
       {phase === 'leaderboard' && (
         <div style={S.center}>
           <div style={{...S.homeCard,maxWidth:780,textAlign:'left'}}>
             <div style={{...S.homeTitle,textAlign:'center'}}>🏆 Leaderboard</div>
-            <div style={{...S.homeDesc,textAlign:'center',marginBottom:'0.5rem'}}>
-              Scores read directly from the Portaldot blockchain
-            </div>
+            <div style={{...S.homeDesc,textAlign:'center',marginBottom:'0.5rem'}}>Live scores from all players • synced in real-time</div>
             <div style={{display:'flex',gap:8,justifyContent:'center',marginBottom:'1rem'}}>
               <button style={{...S.navBtn,fontSize:12}} onClick={loadOnChainLeaderboard} disabled={loadingLb}>
                 {loadingLb ? '⏳ Scanning blockchain...' : '🔄 Refresh from chain'}
               </button>
             </div>
-
-            {loadingLb && (
-              <div style={{textAlign:'center',padding:'2rem',color:'#a78bfa'}}>
-                ⛓ Scanning Portaldot blocks for scores...
-              </div>
-            )}
-
-            {!loadingLb && displayLb.length === 0 && (
-              <div style={{color:'#8b949e',padding:'2rem',textAlign:'center'}}>
-                No scores found yet — play the quiz first!
-              </div>
-            )}
-
+            {loadingLb && <div style={{textAlign:'center',padding:'2rem',color:'#a78bfa'}}>⛓ Scanning Portaldot blocks for scores...</div>}
+            {!loadingLb && displayLb.length === 0 && <div style={{color:'#8b949e',padding:'2rem',textAlign:'center'}}>No scores found yet — play the quiz first!</div>}
             {!loadingLb && displayLb.length > 0 && (
               <table style={S.table}>
                 <thead>
-                  <tr>{['Rank','Player','Score','%','POT Earned','Bonus','Block'].map(h=>(
-                    <th key={h} style={S.th}>{h}</th>
-                  ))}</tr>
+                  <tr>{['Rank','Player','Score','%','POT Earned','Bonus','Block'].map(h=>(<th key={h} style={S.th}>{h}</th>))}</tr>
                 </thead>
                 <tbody>
                   {displayLb.map((e,i)=>(
@@ -695,7 +612,6 @@ export default function App() {
                 </tbody>
               </table>
             )}
-
             <div style={{display:'flex',gap:'0.75rem',marginTop:'1.25rem'}}>
               <button style={{...S.bigBtn,flex:1}} onClick={()=>setPhase('home')}>← Back</button>
               {displayLb.length>0&&<button style={{...S.bigBtn,flex:1,background:'#2d1b1b',color:'#f85149'}} onClick={clearLeaderboard}>Clear</button>}
@@ -704,7 +620,6 @@ export default function App() {
         </div>
       )}
 
-      {/* ADMIN LOCK */}
       {phase === 'admin' && !adminUnlocked && (
         <div style={S.center}>
           <div style={{...S.homeCard,maxWidth:380}}>
@@ -719,8 +634,7 @@ export default function App() {
                   if(enteredPassword===adminPassword){setAdminUnlocked(true);setEnteredPassword('')}
                   else setAdminMsg('❌ Wrong password.')
                 }
-              }}
-            />
+              }}/>
             {adminMsg&&<div style={{color:'#f85149',fontSize:13,marginBottom:'0.75rem'}}>{adminMsg}</div>}
             <button style={S.bigBtn} onClick={()=>{
               if(enteredPassword===adminPassword){setAdminUnlocked(true);setEnteredPassword('')}
@@ -732,7 +646,6 @@ export default function App() {
         </div>
       )}
 
-      {/* ADMIN PANEL */}
       {phase === 'admin' && adminUnlocked && (
         <div style={S.center}>
           <div style={{...S.homeCard,maxWidth:700,textAlign:'left'}}>
@@ -740,7 +653,6 @@ export default function App() {
             {adminMsg&&<div style={{...S.successBox,marginBottom:'1rem'}}>{adminMsg}</div>}
             {claimMsg&&<div style={{...S.successBox,marginBottom:'1rem'}}>{claimMsg}</div>}
 
-            {/* Quiz Schedule */}
             <div style={S.sectionBox}>
               <div style={S.sectionTitle}>⏰ Quiz Schedule</div>
               <div style={{display:'flex',gap:8,marginBottom:'1rem',flexWrap:'wrap'}}>
@@ -750,36 +662,29 @@ export default function App() {
                   </button>
                 ))}
               </div>
-
               {scheduleMode==='manual'&&(
                 <div style={{fontSize:13,color:'#a78bfa',marginBottom:'0.75rem'}}>
-                  Open or close the quiz manually anytime. Current status: <strong style={{color:quizOpen?'#22c55e':'#f85149'}}>{quizOpen?'🟢 OPEN':'🔴 CLOSED'}</strong>
+                  Current status: <strong style={{color:quizOpen?'#22c55e':'#f85149'}}>{quizOpen?'🟢 OPEN':'🔴 CLOSED'}</strong>
                 </div>
               )}
               {scheduleMode==='datetime'&&(
                 <div style={{marginBottom:'0.75rem'}}>
                   <div style={S.formLabel}>Pick exact date and time</div>
-                  <input type="datetime-local" style={{...S.input,marginBottom:0}}
-                    value={scheduledTime} onChange={e=>setScheduledTime(e.target.value)}/>
+                  <input type="datetime-local" style={{...S.input,marginBottom:0}} value={scheduledTime} onChange={e=>setScheduledTime(e.target.value)}/>
                 </div>
               )}
               {scheduleMode==='countdown'&&(
                 <div style={{marginBottom:'0.75rem'}}>
                   <div style={S.formLabel}>Set countdown (e.g. 1h, 30m, 90s, 2h30m)</div>
-                  <input style={{...S.input,marginBottom:0}} placeholder="e.g. 1h30m"
-                    value={countdownInput} onChange={e=>setCountdownInput(e.target.value)}/>
+                  <input style={{...S.input,marginBottom:0}} placeholder="e.g. 1h30m" value={countdownInput} onChange={e=>setCountdownInput(e.target.value)}/>
                 </div>
               )}
-
               <div style={{display:'flex',gap:8}}>
                 <button style={{...S.bigBtn,flex:1}} onClick={applySchedule}>
                   {scheduleMode==='manual'?'🟢 Open Quiz':'🚀 Schedule Quiz'}
                 </button>
-                {quizOpen&&<button style={{...S.bigBtn,flex:1,background:'#2d1b1b',color:'#f85149'}} onClick={closeQuiz}>
-                  🔴 Close Quiz
-                </button>}
+                {quizOpen&&<button style={{...S.bigBtn,flex:1,background:'#2d1b1b',color:'#f85149'}} onClick={closeQuiz}>🔴 Close Quiz</button>}
               </div>
-
               {quizStartsAt&&!quizOpen&&(
                 <div style={{marginTop:'0.75rem',fontSize:13,color:'#f59e0b',textAlign:'center'}}>
                   ⏳ Quiz opens in <strong>{formatCountdown(timeLeft)}</strong>
@@ -787,7 +692,6 @@ export default function App() {
               )}
             </div>
 
-            {/* Game Settings */}
             <div style={S.sectionBox}>
               <div style={S.sectionTitle}>🎮 Game Settings</div>
               <div style={S.formLabel}>Seconds per question</div>
@@ -795,7 +699,7 @@ export default function App() {
                 <input type="number" min={5} max={50} value={timePerQuestion}
                   onChange={e=>setTimePerQuestion(Number(e.target.value))}
                   style={{...S.input,width:80,marginBottom:0,textAlign:'center'}}/>
-                <span style={{fontSize:13,color:'#a78bfa'}}>seconds (min 5, max 50)</span>
+                <span style={{fontSize:13,color:'#a78bfa'}}>seconds</span>
               </div>
               <div style={S.formLabel}>Questions per round</div>
               <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:'0.75rem'}}>
@@ -806,20 +710,15 @@ export default function App() {
               </div>
               <div style={S.formLabel}>Minimum score for bonus</div>
               <div style={{display:'flex',gap:8,marginBottom:'0.75rem'}}>
-                {[3,4,5].map(n=>(
-                  <button key={n} style={{...S.scorePickBtn,...(minScore===n?S.scorePickActive:{})}} onClick={()=>setMinScore(n)}>{n}+</button>
-                ))}
+                {[3,4,5].map(n=>(<button key={n} style={{...S.scorePickBtn,...(minScore===n?S.scorePickActive:{})}} onClick={()=>setMinScore(n)}>{n}+</button>))}
               </div>
               <div style={S.formLabel}>Bonus POT amount</div>
               <div style={{display:'flex',gap:8,marginBottom:'0.75rem'}}>
-                {[1,2,3,5,10].map(n=>(
-                  <button key={n} style={{...S.scorePickBtn,...(bonusPot===n?S.scorePickActive:{})}} onClick={()=>setBonusPot(n)}>{n} POT</button>
-                ))}
+                {[1,2,3,5,10].map(n=>(<button key={n} style={{...S.scorePickBtn,...(bonusPot===n?S.scorePickActive:{})}} onClick={()=>setBonusPot(n)}>{n} POT</button>))}
               </div>
               <button style={S.bigBtn} onClick={saveSettings}>Save Settings</button>
             </div>
 
-            {/* Pending Claims */}
             <div style={S.sectionBox}>
               <div style={S.sectionTitle}>
                 💸 Pending Bonus Claims
@@ -828,15 +727,15 @@ export default function App() {
               {pendingClaims.length===0
                 ?<div style={{color:'#8b949e',fontSize:13,padding:'0.75rem 0'}}>No pending claims yet.</div>
                 :pendingClaims.map(c=>(
-                  <div key={c.id} style={S.claimRow}>
+                  <div key={c.firebaseId} style={S.claimRow}>
                     <div style={{flex:1}}>
                       <div style={{fontSize:13,fontWeight:500,color:'#e6edf3'}}>{c.short}</div>
                       <div style={{fontSize:11,color:'#8b949e'}}>Score: {c.score}/{c.total||5} · Block #{c.block} · {c.date}</div>
                     </div>
                     <div style={{color:'#a78bfa',fontWeight:700,fontSize:14,marginRight:12}}>{c.bonus} POT</div>
-                    <button style={{...S.sendBtn,opacity:sendingClaim===c.id?0.5:1}}
-                      onClick={()=>sendBonus(c)} disabled={sendingClaim===c.id}>
-                      {sendingClaim===c.id?'Sending…':'Send POT →'}
+                    <button style={{...S.sendBtn,opacity:sendingClaim===c.firebaseId?0.5:1}}
+                      onClick={()=>sendBonus(c)} disabled={sendingClaim===c.firebaseId}>
+                      {sendingClaim===c.firebaseId?'Sending…':'Send POT →'}
                     </button>
                   </div>
                 ))
@@ -845,7 +744,7 @@ export default function App() {
                 <div style={{marginTop:'0.75rem'}}>
                   <div style={{fontSize:12,color:'#8b949e',marginBottom:'0.4rem'}}>✅ Paid</div>
                   {claims.filter(c=>c.status==='paid').map(c=>(
-                    <div key={c.id} style={{...S.claimRow,opacity:0.5}}>
+                    <div key={c.firebaseId} style={{...S.claimRow,opacity:0.5}}>
                       <div style={{flex:1}}>
                         <div style={{fontSize:13,color:'#e6edf3'}}>{c.short}</div>
                         <div style={{fontSize:11,color:'#8b949e'}}>{c.date}</div>
@@ -857,7 +756,6 @@ export default function App() {
               )}
             </div>
 
-            {/* Add Question */}
             <div style={S.sectionBox}>
               <div style={S.sectionTitle}>✏️ Add Question</div>
               <div style={S.formLabel}>Question</div>
@@ -874,7 +772,6 @@ export default function App() {
               <button style={{...S.bigBtn,marginTop:'0.5rem'}} onClick={addQuestion}>Add Question</button>
             </div>
 
-            {/* Questions List */}
             <div style={S.sectionBox}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'0.75rem'}}>
                 <div style={S.sectionTitle}>📋 Questions ({questions.length})</div>
@@ -916,7 +813,6 @@ const S = {
   successBox:{padding:'0.75rem 1rem',background:'#1e1333',border:'1px solid #7c3aed',borderRadius:8,color:'#c084fc',fontSize:'0.9rem'},
   center:{display:'flex',justifyContent:'center',padding:'2rem 1rem',width:'100%'},
   homeCard:{background:'#130d24',border:'1px solid #4c1d95',borderRadius:16,padding:'2rem',maxWidth:560,width:'100%',textAlign:'center'},
-  homeEmoji:{fontSize:52,marginBottom:'0.75rem'},
   homeTitle:{fontSize:'1.4rem',fontWeight:700,marginBottom:'0.5rem',color:'#e9d5ff'},
   homeDesc:{fontSize:'0.9rem',color:'#a78bfa',marginBottom:'1.5rem',lineHeight:1.6},
   countdownBanner:{background:'#1a1000',border:'1px solid #854d0e',borderRadius:12,padding:'1.25rem',margin:'0.75rem 0 1rem'},
