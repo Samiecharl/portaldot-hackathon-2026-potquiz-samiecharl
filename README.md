@@ -162,7 +162,7 @@ Install the Polkadot.js extension, create an account, and fund it from the Alice
 
 ## 🎬 Demo
 
-- **Demo Video:** [Watch on Jam](https://jam.dev/c/d3e28bd2-7779-4f1d-ae04-c2bdb482e56b)
+- **Demo Video:** [Watch on Jam](https://jam.dev/c/41be9fdd-436d-4368-bddf-8d59296d820d)
 - **Live Demo:** [portaldotquiz.netlify.app](https://portaldotquiz.netlify.app)
 
 ### Test Data
